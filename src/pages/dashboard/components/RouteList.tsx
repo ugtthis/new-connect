@@ -1,89 +1,101 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
-import {
-  createEffect,
-  createResource,
-  createSignal,
-  For,
-  Suspense,
-} from 'solid-js'
-import type { VoidComponent } from 'solid-js'
-import clsx from 'clsx'
-
-import type { RouteSegments } from '~/types'
-
+import { createEffect, createResource, createSignal, For, onCleanup } from 'solid-js'
+import type { Component } from 'solid-js'
+import { RouteSegments } from '~/types'
+import { SortOption, SortKey, sortRoutes } from '~/utils/sorting'
+import { fetchRoutes } from '~/api/route'
 import RouteCard from '~/components/RouteCard'
-import { fetcher } from '~/api'
-import Button from '~/components/material/Button'
+import RouteSorter from '~/components/RouteSorter'
 
-const PAGE_SIZE = 3
+const PAGE_SIZE = 10
 
-type RouteListProps = {
-  class?: string
+interface RouteListProps {
   dongleId: string
 }
 
-const pages: Promise<RouteSegments[]>[] = []
+const RouteList: Component<RouteListProps> = (props) => {
+  const [sortOption, setSortOption] = createSignal<SortOption>({ label: 'Date', key: 'date', order: 'desc' })
+  const [page, setPage] = createSignal(1)
+  const [allRoutes, setAllRoutes] = createSignal<RouteSegments[]>([])
+  const [sortedRoutes, setSortedRoutes] = createSignal<RouteSegments[]>([])
+  const [hasMore, setHasMore] = createSignal(true)
 
-const RouteList: VoidComponent<RouteListProps> = (props) => {
-  const endpoint = () => `/v1/devices/${props.dongleId}/routes_segments?limit=${PAGE_SIZE}`
-  const getKey = (previousPageData?: RouteSegments[]): string | undefined => {
-    if (!previousPageData) return endpoint()
-    if (previousPageData.length === 0) return undefined
-    const lastSegmentEndTime = previousPageData.at(-1)!.segment_start_times.at(-1)!
-    return `${endpoint()}&end=${lastSegmentEndTime - 1}`
-  }
-  const getPage = (page: number): Promise<RouteSegments[]> => {
-    if (!pages[page]) {
-      // eslint-disable-next-line no-async-promise-executor
-      pages[page] = new Promise(async (resolve) => {
-        const previousPageData = page > 0 ? await getPage(page - 1) : undefined
-        const key = getKey(previousPageData)
-        resolve(key ? fetcher<RouteSegments[]>(key) : [])
-      })
-    }
-    return pages[page]
-  }
+  const [routesData, { refetch }] = createResource(
+    () => ({ dongleId: props.dongleId, page: page(), pageSize: PAGE_SIZE }),
+    fetchRoutes,
+  )
 
   createEffect(() => {
-    if (props.dongleId) {
-      pages.length = 0
-      setSize(1)
+    const newRoutes = routesData()
+    if (newRoutes) {
+      setAllRoutes(prev => {
+        const uniqueNewRoutes = newRoutes.filter(newRoute => 
+          !prev.some(existingRoute => existingRoute.start_time === newRoute.start_time),
+        )
+        setHasMore(newRoutes.length === PAGE_SIZE)
+        return [...prev, ...uniqueNewRoutes]
+      })
     }
   })
 
-  const [size, setSize] = createSignal(1)
-  const onLoadMore = () => setSize(size() + 1)
-  const pageNumbers = () => Array.from(Array(size()).keys())
+  createEffect(() => {
+    const routes = allRoutes()
+    const currentSortOption = sortOption()
+    if (routes.length > 0) {
+      void sortAndSetRoutes(routes, currentSortOption)
+    }
+  })
+
+  const sortAndSetRoutes = async (routes: RouteSegments[], currentSortOption: SortOption) => {
+    const sorted = await sortRoutes(routes, currentSortOption)
+    setSortedRoutes(sorted)
+  }
+
+  const handleSortChange = (key: SortKey, order: 'asc' | 'desc') => {
+    const label = key.charAt(0).toUpperCase() + key.slice(1)
+    setSortOption({ label, key, order })
+    setPage(1)
+    setAllRoutes([])
+    setHasMore(true)
+    void refetch()
+  }
+
+  const loadMore = () => {
+    if (!routesData.loading && hasMore()) {
+      setPage(p => p + 1)
+    }
+  }
+
+  let bottomRef: HTMLDivElement | undefined
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0].isIntersecting) {
+        loadMore()
+      }
+    },
+    { rootMargin: '200px' },
+  )
+
+  createEffect(() => {
+    if (bottomRef) {
+      observer.observe(bottomRef)
+    }
+    return () => {
+      if (bottomRef) observer.unobserve(bottomRef)
+    }
+  })
+
+  onCleanup(() => observer.disconnect())
 
   return (
-    <div
-      class={clsx(
-        'flex w-full flex-col justify-items-stretch gap-4',
-        props.class,
-      )}
-    >
-      <For each={pageNumbers()}>
-        {(i) => {
-          const [routes] = createResource(() => i, getPage)
-          return (
-            <Suspense
-              fallback={
-                <>
-                  <div class="skeleton-loader elevation-1 flex h-[336px] max-w-md flex-col rounded-lg bg-surface-container-low" />
-                  <div class="skeleton-loader elevation-1 flex h-[336px] max-w-md flex-col rounded-lg bg-surface-container-low" />
-                  <div class="skeleton-loader elevation-1 flex h-[336px] max-w-md flex-col rounded-lg bg-surface-container-low" />
-                </>
-              }
-            >
-              <For each={routes()}>
-                {(route) => <RouteCard route={route} />}
-              </For>
-            </Suspense>
-          )
-        }}
+    <div class="flex flex-col gap-4">
+      <RouteSorter onSortChange={handleSortChange} currentSort={sortOption()} />
+      <For each={sortedRoutes()}>
+        {(route: RouteSegments) => <RouteCard route={route} />}
       </For>
-      <div class="flex justify-center">
-        <Button onClick={onLoadMore}>Load more</Button>
+      <div ref={bottomRef}>
+        {routesData.loading && <div>Loading...</div>}
+        {!routesData.loading && !hasMore() && sortedRoutes().length === 0 && <div>No routes found</div>}
+        {!routesData.loading && !hasMore() && sortedRoutes().length > 0 && <div>All routes loaded</div>}
       </div>
     </div>
   )
