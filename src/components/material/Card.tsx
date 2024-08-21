@@ -46,7 +46,7 @@ type CardContentProps = {
 }
 
 export const CardContent: ParentComponent<CardContentProps> = (props) => {
-  return <div class={clsx('flex flex-col gap-4 p-4', props.class)}>{props.children}</div>
+  return <div class={clsx('flex flex-col gap-4 px-4 pt-4', props.class)}>{props.children}</div>
 }
 
 type CardTextContentProps = {
