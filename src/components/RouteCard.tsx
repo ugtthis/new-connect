@@ -8,7 +8,7 @@ import RouteStaticMap from '~/components/RouteStaticMap'
 import RouteStatistics from '~/components/RouteStatistics'
 import type { RouteSegments } from '~/types'
 import IconButton from './material/IconButton'
-import { Popover, PopoverTrigger, PopoverContent } from './PopoverComponents'
+import { Popover, PopoverTrigger, PopoverContent, PopoverTitle } from './PopoverComponents'
 
 const RouteHeader = (props: { route: RouteSegments }) => {
   const startTime = () => dayjs(props.route.start_time_utc_millis)
@@ -66,7 +66,7 @@ const RouteCard: VoidComponent<RouteCardProps> = (props) => {
   const handleToggleClick = (event: Event, setter: (value: boolean) => void) => {
     event.preventDefault()
     event.stopPropagation()
-    setter((prev) => !prev)
+    setter((prev: unknown) => !prev)
   }
 
   return (
@@ -96,6 +96,7 @@ const RouteCard: VoidComponent<RouteCardProps> = (props) => {
 
           {isPopoverOpen() && (
             <PopoverContent>
+              <PopoverTitle routeId={props.route.fullname} />
               <div class="space-y-4">
                 <div class="flex items-center justify-between">
                   <span>Preserve</span>

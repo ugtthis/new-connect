@@ -32,15 +32,17 @@ interface PopoverProps extends ParentProps {
 export const Popover = (props: PopoverProps) => {
 
   return (
-    <div class="relative inline-block">
+    <div class="relative inline-block w-full">
       {props.children}
     </div>
   )
 }
 
-export const PopoverTitle = (props: JSX.IntrinsicElements['h3']) => {
+export const PopoverTitle = (props: JSX.IntrinsicElements['h3'] & { routeId: string }) => {
   return (
     <h3 {...props} class="text-lg font-semibold">
+      <span class="font-mono text-xs text-gray-600">Route ID: {props.routeId}</span>
+      <br />
       {props.children}
     </h3>
   )
