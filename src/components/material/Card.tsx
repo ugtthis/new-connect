@@ -13,11 +13,11 @@ type CardHeaderProps = {
 
 export const CardHeader: VoidComponent<CardHeaderProps> = (props) => {
   return (
-    <div class={clsx('flex h-[72px] items-center gap-4 px-4 py-3', props.class)}>
+    <div class={clsx('flex min-h-[72px] items-center gap-4 px-4 py-3', props.class)}>
       {props.leading}
-      <div class="flex h-12 grow flex-col justify-between">
-        {props.headline && <span class="text-title-md">{props.headline}</span>}
-        {props.subhead && <span class="text-body-md">{props.subhead}</span>}
+      <div class="flex flex-col justify-between py-1 grow">
+        {props.headline && <span class="text-title-md break-words">{props.headline}</span>}
+        {props.subhead && <span class="text-body-md break-words">{props.subhead}</span>}
       </div>
       {props.trailing}
     </div>
